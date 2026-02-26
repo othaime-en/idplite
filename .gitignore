@@ -52,3 +52,4 @@ override.tf.json
 *.swo
 *~
 Thumbs.db
+local-dev-files/
