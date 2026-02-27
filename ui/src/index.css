@@ -1,0 +1,52 @@
+/* 
+ * index.css — Global Styles
+ *
+ * These three @tailwind directives are the heart of how Tailwind works.
+ * At build time, Vite/PostCSS replaces them with:
+ *   @base:       Tailwind's CSS reset (normalizes browser differences)
+ *   @components: Any component classes defined in tailwind.config.js plugins
+ *   @utilities:  The actual utility classes (text-white, bg-gray-900, etc.)
+ *                but ONLY the ones found in your source files (tree-shaking)
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 
+ * Global base styles. 
+ * We use Tailwind's @layer base to keep these inside the Tailwind system
+ * so they interact correctly with responsive/dark mode variants.
+ */
+@layer base {
+    html {
+        /* Smooth scrolling for anchor links */
+        scroll-behavior: smooth;
+    }
+
+    body {
+        @apply bg-gray-950 text-white antialiased;
+        /* antialiased = font-smoothing: antialiased, which makes text look crisper
+       on dark backgrounds (thinner stroke weight) */
+    }
+
+    /* 
+   * Custom scrollbar for dark theme.
+   * These only affect Chromium/Edge — Firefox uses its own scrollbar styling system.
+   */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        @apply bg-gray-950;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        @apply bg-gray-700 rounded-full;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        @apply bg-gray-600;
+    }
+}
