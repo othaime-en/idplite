@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api-lint-test:
+    name: API — Lint & Test
+    runs-on: ubuntu-lates
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: idplite_test
+          POSTGRES_USER: idplite
+          POSTGRES_PASSWORD: idplite
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: api/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r api/requirements.txt
+
+      - name: Lint with ruff
+        run: ruff check api/
+
+      - name: Run Alembic migrations against test DB
+
+        run: cd api && alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://idplite:idplite@localhost:5432/idplite_test
+          SECRET_KEY: ci-test-secret-key
+
+      - name: Run tests
+        run: pytest api/tests/ -v --tb=short
+        env:
+          DATABASE_URL: postgresql://idplite:idplite@localhost:5432/idplite_test
+          SECRET_KEY: ci-test-secret-key
+          CALLBACK_SECRET: ci-callback-secret
+
+  ui-lint:
+    name: UI — Typecheck & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install dependencies
+        run: cd ui && npm ci
+
+      - name: TypeScript typecheck
+        run: cd ui && npm run typecheck
+
+      - name: Lint
+        run: cd ui && npm run lint
