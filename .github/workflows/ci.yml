@@ -8,7 +8,7 @@ on:
 jobs:
   api-lint-test:
     name: API — Lint & Test
-    runs-on: ubuntu-lates
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:15
