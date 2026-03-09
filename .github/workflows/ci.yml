@@ -54,6 +54,7 @@ jobs:
           DATABASE_URL: postgresql://idplite:idplite@localhost:5432/idplite_test
           SECRET_KEY: ci-test-secret-key
           CALLBACK_SECRET: ci-callback-secret
+          PYTHONPATH: api
 
   ui-lint:
     name: UI — Typecheck & Lint
