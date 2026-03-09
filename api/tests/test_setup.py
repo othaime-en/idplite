@@ -6,8 +6,7 @@ The goal is to have a passing CI pipeline from day one, even before any
 real business logic exists.
 """
 
-import pytest
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # Fix 3: removed unused 'import pytest'
 
 
 class TestHealthEndpoint:
@@ -75,7 +74,6 @@ class TestAppStructure:
         response = client.get("/openapi.json")
         assert response.status_code == 200
         schema = response.json()
-        tags_in_schema = {tag["name"] for tag in schema.get("tags", [])}
         # If tags aren't explicitly defined, check the paths instead
         all_paths = schema.get("paths", {})
         assert "/health" in all_paths
