@@ -6,7 +6,7 @@ The goal is to have a passing CI pipeline from day one, even before any
 real business logic exists.
 """
 
-from fastapi.testclient import TestClient  # Fix 3: removed unused 'import pytest'
+from fastapi.testclient import TestClient
 
 
 class TestHealthEndpoint:
@@ -25,7 +25,6 @@ class TestHealthEndpoint:
     def test_health_requires_no_auth(self, client: TestClient):
         """Health check must be publicly accessible — no Authorization header needed."""
         response = client.get("/health")
-        # A 401 here would break load balancers and Docker health checks
         assert response.status_code != 401
 
 
@@ -35,7 +34,6 @@ class TestDocsEndpoint:
     def test_docs_accessible(self, client: TestClient):
         response = client.get("/docs")
         assert response.status_code == 200
-        # Swagger UI is served as HTML
         assert "text/html" in response.headers["content-type"]
 
 
