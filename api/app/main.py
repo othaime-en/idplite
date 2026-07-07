@@ -31,4 +31,8 @@ app.include_router(auth.router,         prefix="/auth",         tags=["auth"])
 app.include_router(environments.router, prefix="/environments", tags=["environments"])
 app.include_router(audit.router,        prefix="/audit",        tags=["audit"])
 app.include_router(teams.router,        prefix="/teams",        tags=["teams"])
+# users_router carries only PATCH /{user_id}/role — split out from teams.py
+# so the route matches the plan's documented path (/users/{id}/role) rather
+# than nesting under /teams. See teams.py's module docstring.
+app.include_router(teams.users_router,  prefix="/users",        tags=["users"])
 app.include_router(health.router,                               tags=["health"])
