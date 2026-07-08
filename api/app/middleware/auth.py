@@ -13,10 +13,10 @@ from __future__ import annotations
 
 from typing import Optional
 
+import jwt
 import passlib.hash as ph
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -59,7 +59,9 @@ def get_current_user(
 def _user_from_jwt(token: str, db: Session) -> Optional[User]:
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[JWT_ALGORITHM])
-    except JWTError:
+    except jwt.PyJWTError:
+        # Catches every PyJWT failure mode we care about here: bad signature,
+        # malformed token, expired exp claim, etc. — all subclass PyJWTError.
         return None
 
     user_id = payload.get("user_id")
@@ -72,7 +74,7 @@ def _user_from_jwt(token: str, db: Session) -> Optional[User]:
 def _user_from_api_key(raw_key: str, db: Session) -> Optional[User]:
     """
     NOTE: O(n) bcrypt-verify loop over every user with an API key set.
-    Acceptable at portfolio-project scale. At real scale, I would need to store a
+    Acceptable at portfolio-project scale. At real scale, store a
     non-sensitive key prefix (e.g. first 8 chars) alongside the hash to
     narrow the candidate set before running bcrypt, which is deliberately slow.
     """

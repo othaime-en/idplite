@@ -11,9 +11,9 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import jwt
 import pytest
 from fastapi.testclient import TestClient
-from jose import jwt
 from passlib.hash import bcrypt
 
 os.environ.setdefault("DATABASE_URL", "postgresql://idplite:idplite@localhost:5432/idplite_test")

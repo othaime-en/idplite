@@ -17,9 +17,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
-from jose import jwt
 from passlib.hash import bcrypt
 from sqlalchemy.orm import Session
 
