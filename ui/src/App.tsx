@@ -1,16 +1,27 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { AuthProvider } from './hooks/useAuth'
+import { AuthProvider, useAuth } from './hooks/useAuth'
+import ProtectedRoute from './components/ProtectedRoute'
+import AuthCallback from './pages/AuthCallback'
 
-// Phase 0 placeholder pages — replaced with real implementations in Phase 6
+// The real dashboard will be implemented later. For now it exists to
+// prove the auth flow works end-to-end: if you see your username here,
+// GitHub OAuth -> JWT -> AuthContext hydration all worked.
 function Dashboard() {
+    const { user, logout } = useAuth()
     return (
         <div className="min-h-screen bg-gray-950 flex items-center justify-center">
             <div className="text-center">
                 <h1 className="text-3xl font-bold text-white mb-2">IDP Lite</h1>
-                <p className="text-gray-400">Dashboard — implemented in Phase 6</p>
-                <p className="text-gray-600 text-sm mt-4">
-                    If you can see this, Tailwind CSS and React Router are working.
+                <p className="text-gray-400">
+                    Logged in as <span className="text-cyan-400 font-mono">{user?.username}</span>{' '}
+                    <span className="text-gray-600">({user?.role})</span>
                 </p>
+                <button
+                    onClick={logout}
+                    className="mt-6 text-sm text-gray-500 hover:text-gray-300 underline"
+                >
+                    Log out
+                </button>
             </div>
         </div>
     )
@@ -26,9 +37,8 @@ function Login() {
                 {/* 
           This anchor tag is intentional — it's a full page navigation, not a React Router link.
           We're leaving the browser to go to the FastAPI GitHub OAuth redirect endpoint.
-          The API then redirects to GitHub, which then redirects back to our callback URL.
-          A React Router <Link> wouldn't work here because we need a real HTTP GET, not a
-          client-side navigation.
+          The API then redirects to GitHub, which then redirects back here via /callback
+          (see pages/AuthCallback.tsx) once login succeeds.
         */}
                 <a
                     href={`${apiUrl}/auth/github`}
@@ -41,9 +51,6 @@ function Login() {
                     </svg>
                     Login with GitHub
                 </a>
-                <p className="text-gray-600 text-xs mt-4">
-                    Phase 0 stub — full OAuth flow implemented in Phase 1
-                </p>
             </div>
         </div>
     )
@@ -69,8 +76,16 @@ export default function App() {
         <AuthProvider>
             <BrowserRouter>
                 <Routes>
-                    <Route path="/" element={<Dashboard />} />
+                    <Route
+                        path="/"
+                        element={
+                            <ProtectedRoute>
+                                <Dashboard />
+                            </ProtectedRoute>
+                        }
+                    />
                     <Route path="/login" element={<Login />} />
+                    <Route path="/callback" element={<AuthCallback />} />
                     {/* <Route path="/new" element={<NewEnvironment />} /> */}
                     {/* <Route path="/environments/:id" element={<EnvironmentDetail />} /> */}
                     {/* <Route path="/audit" element={<AuditLog />} /> */}
