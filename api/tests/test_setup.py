@@ -59,9 +59,9 @@ class TestRouterStubs:
         response = client.get("/audit/")
         assert response.status_code == 200
 
-    def test_teams_list_stub(self, client: TestClient):
+    def test_teams_list_requires_auth(self, client: TestClient):
         response = client.get("/teams/")
-        assert response.status_code == 200
+        assert response.status_code == 401
 
 
 class TestAppStructure:
