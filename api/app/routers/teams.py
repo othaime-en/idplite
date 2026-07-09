@@ -1,16 +1,12 @@
 """
-Team & User Management
+Team Management
 
-Team creation and role changes are super_admin-only. Adding members to a
-team can be done by that team's own team_admin, or any super_admin.
+Team creation is super_admin-only. Adding members to a team, or listing
+them, can be done by that team's own team_admin, or any super_admin.
 
-`users_router` (the role-change endpoint) is defined here rather than in its
-own file because it's small and tightly coupled to team/role management —
-but it's mounted separately in main.py at prefix="/users", not "/teams". See
-the module docstring in this PR's summary for why: the plan's API reference
-table documents PATCH /users/{id}/role without a /teams prefix, but its own
-sample code would nest it under /teams if left in this router. Splitting the
-router object (not the file) satisfies both without duplicating logic.
+User role changes live in routers/users.py, not here — see that file's
+module docstring for the reasoning (short version: role changes don't
+reference any team, so they don't belong under /teams).
 """
 
 from __future__ import annotations
@@ -25,24 +21,24 @@ from app.middleware.rbac import require_super_admin, require_team_admin
 from app.models.audit_log import AuditLog
 from app.models.team import Team
 from app.models.user import User
-from app.schemas.team import (
-    AddMemberRequest,
-    ChangeRoleRequest,
-    CreateTeamRequest,
-    MemberResponse,
-    TeamResponse,
-)
+from app.schemas.team import AddMemberRequest, CreateTeamRequest, TeamResponse
+from app.schemas.user import UserResponse
 
 router = APIRouter()
-users_router = APIRouter()
 
 
 def _team_response(team: Team) -> TeamResponse:
     return TeamResponse(id=str(team.id), name=team.name, slug=team.slug)
 
 
-def _member_response(user: User) -> MemberResponse:
-    return MemberResponse(id=str(user.id), username=user.username, email=user.email, role=user.role)
+def _member_response(user: User) -> UserResponse:
+    return UserResponse(
+        id=str(user.id),
+        username=user.username,
+        email=user.email,
+        role=user.role,
+        team_id=str(user.team_id) if user.team_id else None,
+    )
 
 
 @router.post("/", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)
@@ -83,7 +79,7 @@ def list_teams(
     return [_team_response(t) for t in teams]
 
 
-@router.get("/{team_id}/members", response_model=List[MemberResponse])
+@router.get("/{team_id}/members", response_model=List[UserResponse])
 def list_members(
     team_id: str,
     db: Session = Depends(get_db),
@@ -100,7 +96,7 @@ def list_members(
     return [_member_response(m) for m in members]
 
 
-@router.post("/{team_id}/members", response_model=MemberResponse)
+@router.post("/{team_id}/members", response_model=UserResponse)
 def add_member(
     team_id: str,
     body: AddMemberRequest,
@@ -137,38 +133,6 @@ def add_member(
                 "added_user": body.github_username,
                 "team_id": str(team.id),
                 "role": body.role,
-            },
-        )
-    )
-    db.commit()
-    db.refresh(user)
-    return _member_response(user)
-
-
-# --- User role management (mounted at /users, not /teams — see module docstring) ---
-@users_router.patch("/{user_id}/role", response_model=MemberResponse)
-def change_role(
-    user_id: str,
-    body: ChangeRoleRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_super_admin),
-):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    old_role = user.role
-    user.role = body.role
-
-    db.add(
-        AuditLog(
-            actor_id=current_user.id,
-            action="USER_ROLE_CHANGED",
-            actor_type="user",
-            event_metadata={
-                "user_id": str(user.id),
-                "old_role": old_role,
-                "new_role": body.role,
             },
         )
     )
