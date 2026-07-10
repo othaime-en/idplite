@@ -19,11 +19,19 @@ from passlib.hash import bcrypt
 os.environ.setdefault("DATABASE_URL", "postgresql://idplite:idplite@localhost:5432/idplite_test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production")
 os.environ.setdefault("CALLBACK_SECRET", "test-callback-secret")
+# GitHub OAuth isn't exercised end-to-end in tests (that would need a live
+# GitHub App), but GET /auth/github still needs a non-empty client_id to
+# build its redirect — otherwise it correctly returns 503 "not configured"
+# rather than a broken redirect URL. Setting fake values here lets tests
+# verify the real redirect path instead of just tolerating that 503 branch.
+os.environ.setdefault("GITHUB_CLIENT_ID", "test-github-client-id")
+os.environ.setdefault("GITHUB_REDIRECT_URI", "http://localhost:8000/auth/github/callback")
 
 from app.main import app                      # noqa: E402
 from app.config import settings                # noqa: E402
 from app.database import SessionLocal          # noqa: E402
 from app.middleware.auth import JWT_ALGORITHM  # noqa: E402
+from app.models.audit_log import AuditLog      # noqa: E402
 from app.models.team import Team               # noqa: E402
 from app.models.user import User               # noqa: E402
 
@@ -56,19 +64,20 @@ def db_session():
     yield session
 
     session.rollback()
-    
-    # Delete audit logs first to avoid foreign key violations
     if created_user_ids:
-        from app.models.audit import AuditLog  # Import the audit log model
+        # audit_logs.actor_id has no ON DELETE CASCADE — intentionally, so a
+        # real user's audit trail survives them (there's no user-deletion
+        # endpoint anyway). But it means test rows created by these fixture
+        # users (API key generation, team creation, membership changes,
+        # role changes all write an audit log) must be cleared before the
+        # users themselves, or Postgres raises ForeignKeyViolation here.
         session.query(AuditLog).filter(AuditLog.actor_id.in_(created_user_ids)).delete(synchronize_session=False)
-    
-    # Then delete users and teams
-    if created_user_ids:
         session.query(User).filter(User.id.in_(created_user_ids)).delete(synchronize_session=False)
     if created_team_ids:
         session.query(Team).filter(Team.id.in_(created_team_ids)).delete(synchronize_session=False)
     session.commit()
     session.close()
+
 
 def _make_user(db_session, *, role: str, team_id=None, username: Optional[str] = None) -> User:
     user = User(
