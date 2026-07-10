@@ -18,7 +18,6 @@ Table creation order matters because of foreign key constraints:
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
