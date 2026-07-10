@@ -23,6 +23,12 @@ services:
       DATABASE_URL: postgresql://idplite:idplite@postgres:5432/idplite
       SECRET_KEY: dev-secret-key-change-in-prod
       CALLBACK_SECRET: dev-callback-secret
+      # Pulled from a root .env file if present (docker
+      # compose auto-loads it), otherwise falls back to empty/localhost.
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8000/auth/github/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     depends_on:
       postgres:
         condition: service_healthy

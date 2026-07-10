@@ -44,11 +44,18 @@ class TestRouterStubs:
     so we catch any wiring mistakes early.
     """
 
-    def test_auth_github_stub(self, client: TestClient):
-        # We follow_redirects=False because the real endpoint redirects to GitHub
+    def test_auth_github_redirects_to_github(self, client: TestClient):
+        """
+        Was test_auth_github_stub — auth.py stopped being a stub in Phase 1.
+        conftest.py sets a fake GITHUB_CLIENT_ID for the test process, so
+        this now exercises the real redirect rather than tolerating either
+        a stub 200 or the "not configured" 503 that fires when
+        GITHUB_CLIENT_ID is genuinely empty (as it should be in CI without
+        real OAuth secrets).
+        """
         response = client.get("/auth/github", follow_redirects=False)
-        # Either a redirect (real impl) or 200 (stub) — either is fine at this stage
-        assert response.status_code in (200, 302, 307, 308)
+        assert response.status_code == 307
+        assert "github.com/login/oauth/authorize" in response.headers["location"]
 
     def test_environments_list_stub(self, client: TestClient):
         response = client.get("/environments/")
@@ -59,9 +66,17 @@ class TestRouterStubs:
         response = client.get("/audit/")
         assert response.status_code == 200
 
-    def test_teams_list_stub(self, client: TestClient):
+    def test_teams_list_requires_auth(self, client: TestClient):
+        """
+        Was test_teams_list_stub — teams.py stopped being a stub in Phase 1.
+        GET /teams/ is now real, RBAC-protected code (super_admin only), so
+        an anonymous request correctly gets 401 instead of the old stub's
+        200 + placeholder message. Full RBAC coverage (who's allowed, who
+        isn't) lives in test_auth.py::TestTeamRBAC; this test's only job is
+        confirming the route is wired up at all.
+        """
         response = client.get("/teams/")
-        assert response.status_code == 200
+        assert response.status_code == 401
 
 
 class TestAppStructure:

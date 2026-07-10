@@ -7,7 +7,7 @@ when the /callback endpoint receives status=RUNNING and Terraform outputs are av
 """
 
 import uuid
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text, func
+from sqlalchemy import Column, DateTime, ForeignKey, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 

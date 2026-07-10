@@ -1,28 +1,165 @@
 """
 Authentication & API Key Management
-This router is a stub and exists so main.py can import and mount it without errors.
+
+GitHub OAuth flow:
+  1. Browser hits GET /auth/github -> redirected to GitHub's authorize page.
+  2. GitHub redirects back to GET /auth/github/callback?code=...
+  3. We exchange the code for a GitHub access token, fetch the GitHub profile,
+     find-or-create the local User row, mint our own JWT, and redirect the
+     browser to the frontend with the JWT in the URL *fragment*
+     (FRONTEND_URL/callback#token=...).
 """
 
-from fastapi import APIRouter
+from __future__ import annotations
+
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+import httpx
+import jwt
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
+from passlib.hash import bcrypt
+from sqlalchemy.orm import Session
+
+from app.config import settings
+from app.database import get_db
+from app.middleware.auth import JWT_ALGORITHM, get_current_user
+from app.models.audit_log import AuditLog
+from app.models.user import User
+from app.schemas.auth import ApiKeyResponse, UserProfile
 
 router = APIRouter()
 
+GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
+GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
+GITHUB_USER_API = "https://api.github.com/user"
+GITHUB_EMAILS_API = "https://api.github.com/user/emails"
+
+
+def _create_jwt(user: User) -> str:
+    payload = {
+        "user_id": str(user.id),
+        "team_id": str(user.team_id) if user.team_id else None,
+        "role": user.role,
+        "exp": datetime.now(timezone.utc) + timedelta(hours=24),
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=JWT_ALGORITHM)
+
+
+def _fetch_primary_email(gh_access_token: str) -> Optional[str]:
+    """GitHub omits `email` from /user when it's private — fall back to /user/emails."""
+    resp = httpx.get(
+        GITHUB_EMAILS_API,
+        headers={"Authorization": f"Bearer {gh_access_token}"},
+        timeout=10.0,
+    )
+    if resp.status_code != 200:
+        return None
+    primary = next((e for e in resp.json() if e.get("primary")), None)
+    return primary["email"] if primary else None
+
 
 @router.get("/github")
-def github_login_stub():
-    return {"message": "GitHub OAuth — implemented later"}
+def github_login():
+    """Redirect the browser to GitHub's OAuth authorize page."""
+    if not settings.github_client_id:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="GitHub OAuth is not configured on this server (GITHUB_CLIENT_ID missing).",
+        )
+    params = (
+        f"client_id={settings.github_client_id}"
+        f"&redirect_uri={settings.github_redirect_uri}"
+        f"&scope=user:email"
+    )
+    return RedirectResponse(f"{GITHUB_AUTHORIZE_URL}?{params}")
 
 
 @router.get("/github/callback")
-def github_callback_stub(code: str = ""):
-    return {"message": "GitHub OAuth callback — implemented later"}
+def github_callback(code: str, db: Session = Depends(get_db)):
+    """
+    Handle the GitHub OAuth redirect: exchange `code`, resolve/create the
+    local user, issue our JWT, and hand the browser back to the frontend.
+    """
+    token_resp = httpx.post(
+        GITHUB_TOKEN_URL,
+        json={
+            "client_id": settings.github_client_id,
+            "client_secret": settings.github_client_secret,
+            "code": code,
+            "redirect_uri": settings.github_redirect_uri,
+        },
+        headers={"Accept": "application/json"},
+        timeout=10.0,
+    )
+    token_resp.raise_for_status()
+    gh_access_token = token_resp.json().get("access_token")
+    if not gh_access_token:
+        raise HTTPException(status_code=400, detail="GitHub OAuth exchange failed")
+
+    profile_resp = httpx.get(
+        GITHUB_USER_API,
+        headers={"Authorization": f"Bearer {gh_access_token}"},
+        timeout=10.0,
+    )
+    profile_resp.raise_for_status()
+    gh_user = profile_resp.json()
+
+    email = gh_user.get("email") or _fetch_primary_email(gh_access_token)
+
+    user = db.query(User).filter(User.github_id == gh_user["id"]).first()
+    if user is None:
+        user = User(
+            github_id=gh_user["id"],
+            username=gh_user["login"],
+            email=email,
+            role="member",
+        )
+        db.add(user)
+    else:
+        # GitHub usernames can change — keep ours in sync on every login.
+        user.username = gh_user["login"]
+        if email:
+            user.email = email
+    db.commit()
+    db.refresh(user)
+
+    jwt_token = _create_jwt(user)
+    return RedirectResponse(f"{settings.frontend_url}/callback#token={jwt_token}")
 
 
-@router.post("/api-key")
-def generate_api_key_stub():
-    return {"message": "API key generation — implemented later"}
+@router.post("/api-key", response_model=ApiKeyResponse)
+def generate_api_key(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Issues a new CLI API key for the current user. Only the bcrypt hash is
+    ever persisted — the raw key is returned exactly once. Calling this again
+    silently invalidates any previously issued key (only one hash is stored).
+    """
+    raw_key = f"idplite_{secrets.token_urlsafe(32)}"
+    current_user.api_key_hash = bcrypt.hash(raw_key)
+    db.add(
+        AuditLog(
+            actor_id=current_user.id,
+            action="API_KEY_GENERATED",
+            actor_type="user",
+            event_metadata={"username": current_user.username},
+        )
+    )
+    db.commit()
+    return ApiKeyResponse(api_key=raw_key)
 
 
-@router.get("/me")
-def get_me_stub():
-    return {"message": "Current user — implemented later"}
+@router.get("/me", response_model=UserProfile)
+def get_me(current_user: User = Depends(get_current_user)):
+    return UserProfile(
+        id=str(current_user.id),
+        username=current_user.username,
+        email=current_user.email,
+        role=current_user.role,
+        team_id=str(current_user.team_id) if current_user.team_id else None,
+    )

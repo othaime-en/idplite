@@ -1,13 +1,11 @@
-import { createContext, useContext, useState, ReactNode } from 'react'
+import { createContext, useContext, useState, type ReactNode } from 'react'
+import { api, type User } from '../api/client'
 
-// The shape of the user object returned by GET /auth/me
-export interface User {
-    id: string
-    username: string
-    email: string | null
-    role: 'member' | 'team_admin' | 'super_admin'
-    team_id: string | null
-}
+// Re-exported for convenience so other files can `import { User } from
+// '../hooks/useAuth'` without also reaching into api/client. The type
+// itself now lives in api/client.ts (Phase 1 change) so the API client and
+// AuthContext never disagree about the User shape.
+export type { User }
 
 interface AuthContextValue {
     user: User | null
@@ -33,11 +31,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const [token, setToken] = useState<string | null>(null)
 
     function login(newToken: string, newUser: User) {
+        api.setToken(newToken)
         setToken(newToken)
         setUser(newUser)
     }
 
     function logout() {
+        api.setToken(null)
         setToken(null)
         setUser(null)
     }
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         logout,
     }
 
-    return <AuthContext.Provider value={ value }> { children } </AuthContext.Provider>
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth(): AuthContextValue {

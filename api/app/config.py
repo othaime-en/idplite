@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     github_token: str = ""                 # Fine-grained PAT for triggering workflows
     github_repo: str = ""                  # "org/repo" format, e.g. "acme/idp-lite"
 
+    # --- Frontend ---
+    # Where /auth/github/callback redirects the browser after a successful
+    # login: FRONTEND_URL/callback#token=<jwt>. New in Phase 1 — not present
+    # in the Phase 0 config.py.
+    frontend_url: str = "http://localhost:3000"
+
     # --- AWS ---
     aws_region: str = "us-east-1"
     aws_role_arn: str = ""                 # Optional — for assuming a role in Lambda/ECS
