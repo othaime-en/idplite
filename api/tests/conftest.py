@@ -56,13 +56,19 @@ def db_session():
     yield session
 
     session.rollback()
+    
+    # Delete audit logs first to avoid foreign key violations
+    if created_user_ids:
+        from app.models.audit import AuditLog  # Import the audit log model
+        session.query(AuditLog).filter(AuditLog.actor_id.in_(created_user_ids)).delete(synchronize_session=False)
+    
+    # Then delete users and teams
     if created_user_ids:
         session.query(User).filter(User.id.in_(created_user_ids)).delete(synchronize_session=False)
     if created_team_ids:
         session.query(Team).filter(Team.id.in_(created_team_ids)).delete(synchronize_session=False)
     session.commit()
     session.close()
-
 
 def _make_user(db_session, *, role: str, team_id=None, username: Optional[str] = None) -> User:
     user = User(
