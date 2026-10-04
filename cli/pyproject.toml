@@ -3,11 +3,48 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "outpost"
+name = "outpost-cli"
 version = "0.1.0"
-description = "Outpost CLI — self-service environment provisioning"
+description = "CLI for Outpost — a self-service internal developer platform for ephemeral AWS environments"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.10"
-dependencies = ["click>=8.5.0", "httpx>=0.28.1", "rich>=15.0.0", "pyyaml>=6.0.3"]
+authors = [{ name = "othaime-en" }]
+keywords = [
+    "outpost",
+    "internal-developer-platform",
+    "idp",
+    "devops",
+    "platform-engineering",
+    "terraform",
+    "aws",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = [
+    "click>=8.5.0",
+    "httpx>=0.28.1",
+    "rich>=15.0.0",
+    "pyyaml>=6.0.3",
+]
+
+[project.urls]
+Homepage = "https://github.com/othaime-en/outpost"
+Repository = "https://github.com/othaime-en/outpost"
+Issues = "https://github.com/othaime-en/outpost/issues"
 
 [project.scripts]
 outpost = "outpost.cli:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["outpost"]
