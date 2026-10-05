@@ -12,7 +12,7 @@ from outpost.commands.env import env
 from outpost.commands.teams import teams
 
 try:
-    __version__ = version("outpost-cli")
+    __version__ = version("outpostenv")
 except PackageNotFoundError:
     # Editable/unbuilt checkout (e.g. `python -m outpost.cli` straight from
     # a git clone with no `pip install` at all) — package metadata isn't

@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "outpost-cli"
+name = "outpostenv"
 version = "0.1.0"
 description = "CLI for Outpost — a self-service internal developer platform for ephemeral AWS environments"
 readme = "README.md"
