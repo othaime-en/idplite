@@ -24,7 +24,7 @@ jobs:
       run:
         working-directory: cli
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -52,7 +52,7 @@ jobs:
     permissions:
       contents: write # to create the GitHub Release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Extract this version's section from CHANGELOG.md
         id: changelog
