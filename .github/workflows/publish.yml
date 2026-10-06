@@ -1,9 +1,21 @@
 name: Publish CLI
 
+# Two ways to run this:
+#   1. Push a tag matching v*.*.* -> build, create a GitHub Release with
+#      notes pulled straight from cli/CHANGELOG.md, then publish to PyPI.
+#
+#   2. Run manually from the Actions tab ("Run workflow") -> build and
+#      publish to TestPyPI only. No release is created; nothing reaches
+#      real PyPI.
+
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "v*.*.*"
   workflow_dispatch: {}
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -19,23 +31,64 @@ jobs:
           python-version: "3.12"
 
       - name: Install build tooling
-        run: python -m pip install --upgrade build
+        run: python -m pip install --upgrade build twine
 
       - name: Build sdist and wheel
         run: python -m build
 
       - name: Verify metadata (twine check)
-        run: |
-          python -m pip install --upgrade twine
-          python -m twine check dist/*
+        run: python -m twine check dist/*
 
       - uses: actions/upload-artifact@v4
         with:
           name: dist
           path: cli/dist/
 
+  create-release:
+    # Only for a real tag push -- never for a manual TestPyPI dry run.
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to create the GitHub Release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract this version's section from CHANGELOG.md
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          NEEDLE="## [$VERSION]"
+
+          # index()-based match, not a regex ~ match: a version string
+          # containing "." or being wrapped in "[...]" would otherwise be
+          # silently misinterpreted as a regex (a literal "[0.1.0]" as a
+          # *pattern* means "one character from the set {0,.,1}", not the
+          # four literal characters "[0.1.0]") -- this bit us once
+          # already while building this, so it's commented here on purpose.
+          awk -v needle="$NEEDLE" '
+            index($0, needle) == 1 { capture=1; next }
+            /^## \[/ && capture { exit }
+            capture { print }
+          ' CHANGELOG.md > /tmp/release_notes.md
+
+          if [ ! -s /tmp/release_notes.md ]; then
+            echo "::error::No '## [$VERSION]' section found in cli/CHANGELOG.md. Add one before tagging a release."
+            exit 1
+          fi
+
+          cat /tmp/release_notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --notes-file /tmp/release_notes.md
+
   publish-testpypi:
-    # Manual dry run only -- never runs on a real release.
+    # Manual dry run only -- never runs on a real tag push.
     if: github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
@@ -53,9 +106,9 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
 
   publish-pypi:
-    # Real publish -- only ever runs from a published GitHub Release.
-    if: github.event_name == 'release'
-    needs: build
+    # Real publish -- only after the release is successfully created.
+    if: github.event_name == 'push'
+    needs: create-release
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
